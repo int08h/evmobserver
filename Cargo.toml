@@ -1,0 +1,14 @@
+[package]
+name = "evmobserver"
+version = "0.1.0"
+authors = ["Stuart Stock <stuart@int08h.com>"]
+repository = "https://github.com/int08h/evmobserver"
+license = "Apache-2.0"
+description = "Work-in-progress effort to extract EVM details from Geth IPC"
+readme = "README.md"
+
+[dependencies]
+log = "0.4"
+simple_logger = "0.5"
+json = "0.11"
+bytesize = "0.2"
