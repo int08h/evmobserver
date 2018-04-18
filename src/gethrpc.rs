@@ -51,7 +51,7 @@ impl GethRpc {
     /// Open the IPC socket at `ipc_path`
     pub fn new(ipc_path: &str) -> Self {
         let evm = GethRpc {
-            stream: UnixStream::connect(ipc_path).unwrap(),
+            stream: UnixStream::connect(ipc_path).expect("could not connect to socket"),
             results: Vec::with_capacity((16 * bytesize::MIB) as usize),
             sw: Stopwatch::new()
         };

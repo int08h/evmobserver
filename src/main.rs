@@ -42,8 +42,13 @@ mod evminst;
 struct EvmExtract {
     rpc: GethRpc,
     current_block: u64,
-    counts: [u64; 256],
-    gas: [u64; 256],
+    txn_counts: [u64; 256],
+    block_counts: [u64; 256],
+    total_counts: [u64; 256],
+    txn_gas: [u64; 256],
+    block_gas: [u64; 256],
+    total_gas: [u64; 256],
+    pretty_string: String
 }
 
 impl EvmExtract {
@@ -51,8 +56,13 @@ impl EvmExtract {
         EvmExtract {
             rpc: GethRpc::new(rpc_path),
             current_block: 1_000_000,
-            counts: [0; 256],
-            gas: [0; 256],
+            txn_counts: [0; 256],
+            block_counts: [0; 256],
+            total_counts: [0; 256],
+            txn_gas: [0; 256],
+            block_gas: [0; 256],
+            total_gas: [0; 256],
+            pretty_string: String::with_capacity(2048)
         }
     }
 
@@ -99,9 +109,12 @@ impl EvmExtract {
                 continue;
             }
 
+            self.clear_block_counts();
             let num_traces = result.len();
 
             for idx in 0..num_traces {
+                self.clear_txn_counts();
+
                 let inner_result = &result[idx]["result"];
                 let total_trace_gas = &inner_result["gas"];
                 let trace_logs = &inner_result["structLogs"];
@@ -126,30 +139,62 @@ impl EvmExtract {
 
         let from = txn_info["from"].as_str().unwrap_or("");
         let to = txn_info["to"].as_str().unwrap_or("");
-        let gas_price = if let Some(px) = txn_info["gasPrice"].as_str() {
+        let gas_price = {
+            let px = txn_info["gasPrice"].as_str().unwrap_or("0x0");
             EvmExtract::hex_to_u64(px).unwrap_or(0)
-        } else {
-            0
         };
 
         for trace in trace_logs.members() {
             let op = EvmInst::from_opt_str(trace["op"].as_str());
             let gas_cost = trace["gasCost"].as_u64().expect("gasCost extract failed");
 
-            self.counts[op as usize] += 1;
-            self.gas[op as usize] += gas_cost;
+            self.txn_counts[op as usize] += 1;
+            self.block_counts[op as usize] += 1;
+            self.total_counts[op as usize] += 1;
+            self.txn_gas[op as usize] += gas_cost;
+            self.block_gas[op as usize] += gas_cost;
+            self.total_gas[op as usize] += gas_cost;
         }
 
-        info!("{}:{} from:{}, to:{}, px:{}, counts {:?}",
-              block_num, txn_idx, from, to, gas_price, &self.counts[..]);
+        info!("{}:{} from:{}, to:{}, px:{}, counts {}",
+              block_num, txn_idx, from, to, gas_price, self.pretty_counts());
     }
 
-    fn pretty_counts(&self) -> String {
-        let mut result = String::with_capacity(1024);
+    fn clear_txn_counts(&mut self) {
+        // wtf Rust, no array::fill or equivalent?
+        for i in 0..self.txn_counts.len() {
+            self.txn_counts[i] = 0;
+            self.txn_gas[i] = 0;
+        }
+    }
 
-        // TODO
+    fn clear_block_counts(&mut self) {
+        // wtf Rust, no array::fill or equivalent?
+        for i in 0..self.block_counts.len() {
+            self.block_counts[i] = 0;
+            self.block_gas[i] = 0;
+        }
+    }
 
-        result
+    fn pretty_counts(&mut self) -> &String {
+        self.pretty_string.clear();
+        let spacing: &str = ", ";
+
+        for i in 0..evminst::VALUES.len() {
+            let op = evminst::VALUES[i];
+
+            match self.txn_counts[op as usize] {
+                0 => (),
+                count => {
+                    self.pretty_string.push_str(evminst::as_str(&op));
+                    self.pretty_string.push(':');
+                    self.pretty_string.push_str(count.to_string().as_ref());
+                    self.pretty_string.push_str(spacing);
+                }
+            }
+        }
+
+        &self.pretty_string
     }
 
     fn hex_to_u64(s: &str) -> Option<u64> {
