@@ -27,6 +27,7 @@ extern crate stopwatch;
 use bytesize::ByteSize;
 use evminst::EvmInst;
 use gethrpc::GethRpc;
+use instcount::InstCount;
 use json::JsonValue;
 use separator::Separatable;
 use std::str;
@@ -35,6 +36,9 @@ use stopwatch::Stopwatch;
 
 mod gethrpc;
 mod evminst;
+mod instcount;
+mod util;
+
 
 ///
 /// Collect EVM statistics
@@ -42,48 +46,26 @@ mod evminst;
 struct EvmExtract {
     rpc: GethRpc,
     current_block: u64,
-    txn_counts: [u64; 256],
-    block_counts: [u64; 256],
-    total_counts: [u64; 256],
-    txn_gas: [u64; 256],
-    block_gas: [u64; 256],
-    total_gas: [u64; 256],
-    pretty_string: String
+    txn_count: InstCount,
+    block_count: InstCount,
+    total_count: InstCount,
+    pretty_string: String,
 }
 
 impl EvmExtract {
-    fn new(rpc_path: &str) -> Self {
+    fn new(starting_block: u64, rpc_path: &str) -> Self {
         EvmExtract {
             rpc: GethRpc::new(rpc_path),
-            current_block: 1_000_000,
-            txn_counts: [0; 256],
-            block_counts: [0; 256],
-            total_counts: [0; 256],
-            txn_gas: [0; 256],
-            block_gas: [0; 256],
-            total_gas: [0; 256],
-            pretty_string: String::with_capacity(2048)
-        }
-    }
-
-    /// Latest synchronized block number from Geth `eth.syncing` call
-    fn get_latest_block(&mut self) -> Option<u64> {
-        let data = match self.rpc.syncing() {
-            Ok(v) => v,
-            Err(e) => {
-                println!("Error syncing(): {:?}", e);
-                return None;
-            }
-        };
-
-        match data["result"]["currentBlock"].as_str() {
-            Some(v) => EvmExtract::hex_to_u64(v),
-            _ => None
+            current_block: starting_block,
+            txn_count: InstCount::new(),
+            block_count: InstCount::new(),
+            total_count: InstCount::new(),
+            pretty_string: String::with_capacity(4096),
         }
     }
 
     fn catchup(&mut self) {
-        let latest_block = match self.get_latest_block() {
+        let latest_block = match self.rpc.get_latest_block() {
             Some(v) => v,
             None => return
         };
@@ -102,78 +84,61 @@ impl EvmExtract {
         for block_num in self.current_block..latest_block {
             sw.start();
 
-            let (total, trace) = self.rpc.trace_block(block_num);
-            let result = &trace.unwrap()["result"];
+            let block_info = self.rpc.block_info(block_num);
+            let (total, trace_resp) = self.rpc.trace_block(block_num);
+            let trace = &trace_resp.unwrap_or(JsonValue::Null)["result"];
 
-            if result.is_empty() {
+            if trace.is_empty() {
                 continue;
             }
 
-            self.clear_block_counts();
-            let num_traces = result.len();
+            self.block_count.clear();
+            let num_traces = trace.len();
 
             for idx in 0..num_traces {
-                self.clear_txn_counts();
+                self.txn_count.clear();
 
-                let inner_result = &result[idx]["result"];
+                let inner_result = &trace[idx]["result"];
                 let total_trace_gas = &inner_result["gas"];
                 let trace_logs = &inner_result["structLogs"];
 
-                self.count_instructions(block_num, idx as u64, trace_logs);
-            }
+                self.count_instructions(block_num, idx as u32, trace_logs);
+            };
 
-            info!("Block {} read {} with {} traces in {}ms",
-                  block_num.separated_string(), ByteSize::b(total), num_traces, sw.elapsed_ms()
+            info!("Block {} ({}) read {} with {} traces in {}ms",
+                  block_num.separated_string(), block_info.time_stamp, ByteSize::b(total),
+                  num_traces, sw.elapsed_ms()
             );
         }
 
         self.current_block = latest_block;
     }
 
-    fn count_instructions(&mut self, block_num: u64, txn_idx: u64, trace_logs: &JsonValue) {
+    fn count_instructions(&mut self, block_num: u64, txn_idx: u32, trace_logs: &JsonValue) {
         if trace_logs.is_empty() {
             return;
         }
 
-        let txn_info = &self.rpc.txn_by_block_idx(block_num, txn_idx).unwrap_or(JsonValue::Null)["result"];
-
-        let from = txn_info["from"].as_str().unwrap_or("");
-        let to = txn_info["to"].as_str().unwrap_or("");
-        let gas_price = {
-            let px = txn_info["gasPrice"].as_str().unwrap_or("0x0");
-            EvmExtract::hex_to_u64(px).unwrap_or(0)
-        };
+        let txn_info = self.rpc.txn_info(block_num, txn_idx);
 
         for trace in trace_logs.members() {
             let op = EvmInst::from_opt_str(trace["op"].as_str());
             let gas_cost = trace["gasCost"].as_u64().expect("gasCost extract failed");
 
-            self.txn_counts[op as usize] += 1;
-            self.block_counts[op as usize] += 1;
-            self.total_counts[op as usize] += 1;
-            self.txn_gas[op as usize] += gas_cost;
-            self.block_gas[op as usize] += gas_cost;
-            self.total_gas[op as usize] += gas_cost;
+            self.txn_count.inc_count(op);
+            self.txn_count.add_gas(op, gas_cost);
+
+            self.block_count.inc_count(op);
+            self.block_count.add_gas(op, gas_cost);
+
+            self.total_count.inc_count(op);
+            self.total_count.add_gas(op, gas_cost);
         }
 
         info!("{}:{} from:{}, to:{}, px:{}, counts {}",
-              block_num, txn_idx, from, to, gas_price, self.pretty_counts());
-    }
-
-    fn clear_txn_counts(&mut self) {
-        // wtf Rust, no array::fill or equivalent?
-        for i in 0..self.txn_counts.len() {
-            self.txn_counts[i] = 0;
-            self.txn_gas[i] = 0;
-        }
-    }
-
-    fn clear_block_counts(&mut self) {
-        // wtf Rust, no array::fill or equivalent?
-        for i in 0..self.block_counts.len() {
-            self.block_counts[i] = 0;
-            self.block_gas[i] = 0;
-        }
+              block_num, txn_idx, txn_info.from, txn_info.to,
+              txn_info.gas_price, self.pretty_counts()
+        );
     }
 
     fn pretty_counts(&mut self) -> &String {
@@ -183,12 +148,17 @@ impl EvmExtract {
         for i in 0..evminst::VALUES.len() {
             let op = evminst::VALUES[i];
 
-            match self.txn_counts[op as usize] {
+            match self.txn_count.get_count(op) {
                 0 => (),
                 count => {
+                    let gas = self.txn_count.get_gas(op);
+
                     self.pretty_string.push_str(evminst::as_str(&op));
                     self.pretty_string.push(':');
                     self.pretty_string.push_str(count.to_string().as_ref());
+                    self.pretty_string.push('(');
+                    self.pretty_string.push_str(gas.to_string().as_ref());
+                    self.pretty_string.push(')');
                     self.pretty_string.push_str(spacing);
                 }
             }
@@ -196,27 +166,25 @@ impl EvmExtract {
 
         &self.pretty_string
     }
-
-    fn hex_to_u64(s: &str) -> Option<u64> {
-        if s.len() > 2 {
-            // skip leading 0x
-            match u64::from_str_radix(&s[2..], 16) {
-                Ok(val) => Some(val),
-                Err(_) => None
-            }
-        } else {
-            None
-        }
-    }
 }
-
 
 fn main() {
     use log::Level;
+    use std::env::args;
 
     simple_logger::init_with_level(Level::Info).unwrap();
 
-    let mut evm = EvmExtract::new("/home/stuart/.ethereum/geth.ipc");
+    let argv: Vec<String> = args().collect();
+
+    if argv.len() != 3 {
+        info!("Usage: evmobs STARTING_BLOCK IPC_PATH");
+        std::process::exit(1);
+    }
+
+    let starting_block = argv[1].parse::<u64>().expect("Couldn't parse starting block");
+    let ipc_path = &argv[2];
+
+    let mut evm = EvmExtract::new(starting_block, &ipc_path);
 
     loop {
         evm.catchup();

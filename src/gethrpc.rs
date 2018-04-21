@@ -32,6 +32,7 @@ use std::str;
 use std::time::Duration;
 use std::u64;
 use stopwatch::Stopwatch;
+use util::hex_to_u64;
 
 ///
 /// Geth IPC interactions
@@ -45,6 +46,22 @@ pub struct GethRpc {
 
     /// For timing internal operations
     sw: Stopwatch
+}
+
+#[derive(Debug)]
+pub struct BlockInfo {
+    pub block_num: u64,
+    pub time_stamp: u64,
+    pub gas_limit: u64,
+}
+
+#[derive(Debug)]
+pub struct TxnInfo {
+    pub block_num: u64,
+    pub block_index: u32,
+    pub gas_price: u64,
+    pub from: String,
+    pub to: String,
 }
 
 impl GethRpc {
@@ -62,7 +79,7 @@ impl GethRpc {
     }
 
     /// Call Geth `eth.syncing`
-    pub fn syncing(&mut self) -> json::Result<JsonValue> {
+    fn syncing(&mut self) -> json::Result<JsonValue> {
         let rpc = r#"{"jsonrpc":"2.0","method":"eth_syncing","params":[],"id":1}"#;
 
         self.stream.write_all(rpc.as_bytes()).expect("write error");
@@ -73,7 +90,7 @@ impl GethRpc {
     }
 
     /// Call `eth.getTransactionByBlockNumberAndIndex`
-    pub fn txn_by_block_idx(&mut self, block_num: u64, txn_index: u64) -> json::Result<JsonValue> {
+    pub fn txn_by_block_idx(&mut self, block_num: u64, txn_index: u32) -> json::Result<JsonValue> {
         let rpc = format!(
             "{{\"jsonrpc\":\"2.0\",\"method\":\"eth_getTransactionByBlockNumberAndIndex\",\
             \"params\":[\"{:#x}\",\"{:#x}\"],\"id\":1}}", block_num, txn_index
@@ -82,6 +99,20 @@ impl GethRpc {
         self.stream.write_all(rpc.as_bytes()).expect("write error");
 
         let (_, parsed_json) = self.consume_response("txn_by_block_idx");
+
+        return parsed_json;
+    }
+
+    /// Call Geth `eth.getBlockByNumber`
+    pub fn get_block(&mut self, block_num: u64) -> json::Result<JsonValue> {
+        let rpc = format!(
+            "{{\"jsonrpc\":\"2.0\",\"method\":\"eth_getBlockByNumber\",\
+            \"params\":[\"{:#x}\",false],\"id\":1}}", block_num
+        );
+
+        self.stream.write_all(rpc.as_bytes()).expect("write error");
+
+        let (_, parsed_json) = self.consume_response("get_block");
 
         return parsed_json;
     }
@@ -97,6 +128,58 @@ impl GethRpc {
         self.stream.write_all(rpc.as_bytes()).expect("write error");
 
         return self.consume_response("trace_block");
+    }
+
+    /// Latest synchronized block number from Geth `eth.syncing` call
+    pub fn get_latest_block(&mut self) -> Option<u64> {
+        let data = match self.syncing() {
+            Ok(v) => v,
+            Err(e) => {
+                println!("Error syncing(): {:?}", e);
+                return None;
+            }
+        };
+
+        match data["result"]["currentBlock"].as_str() {
+            Some(v) => hex_to_u64(v),
+            _ => None
+        }
+    }
+
+    /// Obtain `BlockInfo` for the provided block number
+    pub fn block_info(&mut self, block_num: u64) -> BlockInfo {
+        let block_info = &self.get_block(block_num).unwrap_or(JsonValue::Null)["result"];
+
+        let ts = block_info["timestamp"].as_str().unwrap_or("0x0");
+        let gas_limit = block_info["gas_limit"].as_str().unwrap_or("0x0");
+
+        BlockInfo {
+            block_num,
+            time_stamp: hex_to_u64(ts).unwrap_or(0),
+            gas_limit: hex_to_u64(gas_limit).unwrap_or(0),
+        }
+    }
+
+    /// Obtain transaction information for transaction in the given block at the given
+    /// transaction index.
+    pub fn txn_info(&mut self, block_num: u64, block_index: u32) -> TxnInfo {
+        let mut txn_info = self.txn_by_block_idx(block_num, block_index)
+            .unwrap_or(JsonValue::Null);
+
+        let from = txn_info["result"]["from"].take_string().unwrap_or_else(|| String::new());
+        let to = txn_info["result"]["to"].take_string().unwrap_or_else(|| String::new());
+        let gas_price = {
+            let px = txn_info["result"]["gasPrice"].as_str().unwrap_or("0x0");
+            hex_to_u64(px).unwrap_or(0)
+        };
+
+        TxnInfo {
+            block_num,
+            block_index,
+            gas_price,
+            from,
+            to,
+        }
     }
 
     fn consume_response(&mut self, note: &str) -> (u64, json::Result<JsonValue>) {
