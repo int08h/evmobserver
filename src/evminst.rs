@@ -302,7 +302,10 @@ impl EvmInst {
             "SUICIDE" => EvmInst::SUICIDE,
             "SELFDESTRUCT" => EvmInst::SUICIDE,
             "Missing opcode 0xfe" => EvmInst::INVALID,
-            _ => panic!("unknown instruction '{}'", s)
+            inst => {
+                error!("unknown instruction '{}'", inst);
+                EvmInst::INVALID
+            }
         }
     }
 
