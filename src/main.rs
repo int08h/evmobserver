@@ -53,8 +53,9 @@ struct EvmExtract {
     last_update: Instant,
 }
 
+static TEN_SECONDS: &'static Duration = &Duration::from_secs(10);
+
 impl EvmExtract {
-    const TEN_SECONDS: Duration = Duration::from_secs(10);
 
     fn new(starting_block: u64, rpc_path: &str) -> Self {
         EvmExtract {
@@ -87,6 +88,11 @@ impl EvmExtract {
             let trace_resp = self.rpc.trace_block(block_num);
             let trace = &trace_resp.unwrap_or(JsonValue::Null)["result"];
 
+            if self.last_update.elapsed() > *TEN_SECONDS {
+                self.log_update(block_num, latest_block);
+                self.last_update = Instant::now();
+            }
+
             if trace.is_empty() {
                 continue;
             }
@@ -101,19 +107,15 @@ impl EvmExtract {
             };
 
             self.current_block = block_num;
-
-            if self.last_update.elapsed() > Self::TEN_SECONDS {
-                self.log_update(latest_block);
-                self.last_update = Instant::now();
-            }
         }
     }
 
-    fn log_update(&self, latest_block: u64) {
-        info!("Block {} ({}) of {}: txns {}, minsts {:.1}, mgas {:.1}, written {}",
+    fn log_update(&self, curr_block: u64, latest_block: u64) {
+        info!("Wrote block {} ({}) of {} (geth {}): txns {}, minsts {:.1}, mgas {:.1}, written {}",
               self.out_file.last_block.separated_string(),
               self.out_file.last_time_stamp,
               latest_block.separated_string(),
+              curr_block.separated_string(),
               self.out_file.total_txns.separated_string(),
               self.out_file.total_inst as f64 / 1_000_000.0,
               self.out_file.total_gas as f64 / 1_000_000.0,
