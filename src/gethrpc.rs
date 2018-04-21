@@ -20,17 +20,14 @@ extern crate bytesize;
 extern crate json;
 extern crate log;
 extern crate simple_logger;
-extern crate stopwatch;
 
 use json::JsonValue;
-use log::Level::Debug;
 use std::io::{Read, Write};
 use std::io::ErrorKind::{TimedOut, WouldBlock};
 use std::os::unix::net::UnixStream;
 use std::str;
 use std::time::Duration;
 use std::u64;
-use stopwatch::Stopwatch;
 use util::hex_to_u64;
 
 ///
@@ -42,11 +39,9 @@ pub struct GethRpc {
 
     /// Accumulate partial JSON reads from IPC socket for parsing
     results: Vec<u8>,
-
-    /// For timing internal operations
-    sw: Stopwatch
 }
 
+/// Interesting Block information
 #[derive(Debug)]
 pub struct BlockInfo {
     pub block_num: u64,
@@ -54,6 +49,7 @@ pub struct BlockInfo {
     pub gas_limit: u64,
 }
 
+/// Interesting transaction info
 #[derive(Debug)]
 pub struct TxnInfo {
     pub block_num: u64,
@@ -69,7 +65,6 @@ impl GethRpc {
         let evm = GethRpc {
             stream: UnixStream::connect(ipc_path).expect("could not connect to socket"),
             results: Vec::with_capacity((16 * bytesize::MIB) as usize),
-            sw: Stopwatch::new()
         };
 
         evm.stream.set_read_timeout(Some(Duration::new(10, 0))).expect("Couldn't set read timeout");
@@ -130,7 +125,7 @@ impl GethRpc {
     }
 
     /// Call Geth `debug.traceBlockByNumber`
-    pub fn trace_block(&mut self, block_num: u64) -> (u64, json::Result<JsonValue>) {
+    pub fn trace_block(&mut self, block_num: u64) -> json::Result<JsonValue> {
         let rpc = format!(
             "{{\"jsonrpc\":\"2.0\",\"method\":\"debug_traceBlockByNumber\",\
             \"params\":[\"{:#x}\",{{\"disableStorage\":true,\"disableStack\":true,\"disableMemory\":true}}],\
@@ -139,7 +134,9 @@ impl GethRpc {
 
         self.stream.write_all(rpc.as_bytes()).expect("write error");
 
-        return self.consume_response("trace_block");
+        let (_, parsed_json) = self.consume_response("trace_block");
+
+        return parsed_json;
     }
 
     /// Call Geth `eth.syncing`
@@ -187,23 +184,18 @@ impl GethRpc {
         let mut total_read = 0u64;
 
         loop {
-            self.sw.start();
-
             match self.stream.read(&mut buf) {
                 Ok(size) => {
                     total_read += size as u64;
 
-                    if log_enabled!(Debug) {
-                        debug!("{}: loop read {} in {} ms, total {}",
-                               note, size, self.sw.elapsed_ms(), total_read);
-                    }
+                    debug!("{}: loop read {}, total {}", note, size, total_read);
 
                     let chunk = &buf[..size];
                     self.results.extend(chunk);
                     if chunk[size - 1] == b'\n' {
-                        break
+                        break;
                     }
-                },
+                }
 
                 Err(ref e) if e.kind() == TimedOut || e.kind() == WouldBlock =>
                     warn!("Read timeout in {}, continuing", note),
@@ -214,7 +206,7 @@ impl GethRpc {
             }
         }
 
-        // we don't need no stinking validation
+        // we don't need no stinking validation; assume geth produces valid utf8
         let payload = unsafe { str::from_utf8_unchecked(&self.results) };
 
         (total_read, json::parse(payload))

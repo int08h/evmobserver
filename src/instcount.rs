@@ -49,10 +49,6 @@ impl InstCount {
         self.gas_counts[evm_inst as usize]
     }
 
-    pub fn get_gas_total(&self) -> u64 {
-        self.gas_total
-    }
-
     pub fn clear(&mut self) {
         // wtf Rust, no array::fill or equivalent?
         for i in 0..self.evm_counts.len() {
