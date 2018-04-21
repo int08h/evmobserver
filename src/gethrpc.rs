@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-
 //!
 //! Provides Geth IPC calls
 //!
@@ -78,58 +77,6 @@ impl GethRpc {
         return evm;
     }
 
-    /// Call Geth `eth.syncing`
-    fn syncing(&mut self) -> json::Result<JsonValue> {
-        let rpc = r#"{"jsonrpc":"2.0","method":"eth_syncing","params":[],"id":1}"#;
-
-        self.stream.write_all(rpc.as_bytes()).expect("write error");
-
-        let (_, parsed_json) = self.consume_response("eth.syncing");
-
-        return parsed_json;
-    }
-
-    /// Call `eth.getTransactionByBlockNumberAndIndex`
-    pub fn txn_by_block_idx(&mut self, block_num: u64, txn_index: u32) -> json::Result<JsonValue> {
-        let rpc = format!(
-            "{{\"jsonrpc\":\"2.0\",\"method\":\"eth_getTransactionByBlockNumberAndIndex\",\
-            \"params\":[\"{:#x}\",\"{:#x}\"],\"id\":1}}", block_num, txn_index
-        );
-
-        self.stream.write_all(rpc.as_bytes()).expect("write error");
-
-        let (_, parsed_json) = self.consume_response("txn_by_block_idx");
-
-        return parsed_json;
-    }
-
-    /// Call Geth `eth.getBlockByNumber`
-    pub fn get_block(&mut self, block_num: u64) -> json::Result<JsonValue> {
-        let rpc = format!(
-            "{{\"jsonrpc\":\"2.0\",\"method\":\"eth_getBlockByNumber\",\
-            \"params\":[\"{:#x}\",false],\"id\":1}}", block_num
-        );
-
-        self.stream.write_all(rpc.as_bytes()).expect("write error");
-
-        let (_, parsed_json) = self.consume_response("get_block");
-
-        return parsed_json;
-    }
-
-    /// Call Geth `debug.traceBlockByNumber`
-    pub fn trace_block(&mut self, block_num: u64) -> (u64, json::Result<JsonValue>) {
-        let rpc = format!(
-            "{{\"jsonrpc\":\"2.0\",\"method\":\"debug_traceBlockByNumber\",\
-            \"params\":[\"{:#x}\",{{\"disableStorage\":true,\"disableStack\":true,\"disableMemory\":true}}],\
-            \"id\":1}}", block_num
-        );
-
-        self.stream.write_all(rpc.as_bytes()).expect("write error");
-
-        return self.consume_response("trace_block");
-    }
-
     /// Latest synchronized block number from Geth `eth.syncing` call
     pub fn get_latest_block(&mut self) -> Option<u64> {
         let data = match self.syncing() {
@@ -180,6 +127,58 @@ impl GethRpc {
             from,
             to,
         }
+    }
+
+    /// Call Geth `debug.traceBlockByNumber`
+    pub fn trace_block(&mut self, block_num: u64) -> (u64, json::Result<JsonValue>) {
+        let rpc = format!(
+            "{{\"jsonrpc\":\"2.0\",\"method\":\"debug_traceBlockByNumber\",\
+            \"params\":[\"{:#x}\",{{\"disableStorage\":true,\"disableStack\":true,\"disableMemory\":true}}],\
+            \"id\":1}}", block_num
+        );
+
+        self.stream.write_all(rpc.as_bytes()).expect("write error");
+
+        return self.consume_response("trace_block");
+    }
+
+    /// Call Geth `eth.syncing`
+    fn syncing(&mut self) -> json::Result<JsonValue> {
+        let rpc = r#"{"jsonrpc":"2.0","method":"eth_syncing","params":[],"id":1}"#;
+
+        self.stream.write_all(rpc.as_bytes()).expect("write error");
+
+        let (_, parsed_json) = self.consume_response("eth.syncing");
+
+        return parsed_json;
+    }
+
+    /// Call `eth.getTransactionByBlockNumberAndIndex`
+    fn txn_by_block_idx(&mut self, block_num: u64, txn_index: u32) -> json::Result<JsonValue> {
+        let rpc = format!(
+            "{{\"jsonrpc\":\"2.0\",\"method\":\"eth_getTransactionByBlockNumberAndIndex\",\
+            \"params\":[\"{:#x}\",\"{:#x}\"],\"id\":1}}", block_num, txn_index
+        );
+
+        self.stream.write_all(rpc.as_bytes()).expect("write error");
+
+        let (_, parsed_json) = self.consume_response("txn_by_block_idx");
+
+        return parsed_json;
+    }
+
+    /// Call Geth `eth.getBlockByNumber`
+    fn get_block(&mut self, block_num: u64) -> json::Result<JsonValue> {
+        let rpc = format!(
+            "{{\"jsonrpc\":\"2.0\",\"method\":\"eth_getBlockByNumber\",\
+            \"params\":[\"{:#x}\",false],\"id\":1}}", block_num
+        );
+
+        self.stream.write_all(rpc.as_bytes()).expect("write error");
+
+        let (_, parsed_json) = self.consume_response("get_block");
+
+        return parsed_json;
     }
 
     fn consume_response(&mut self, note: &str) -> (u64, json::Result<JsonValue>) {
