@@ -157,6 +157,7 @@ pub enum EvmInst {
     CREATE2 = 0xfb,
     REVERT = 0xfd,
     STATICCALL = 0xfa,
+    INVALID = 0xfe,
     SUICIDE = 0xff,
 }
 
@@ -297,8 +298,11 @@ impl EvmInst {
             "CREATE2" => EvmInst::CREATE2,
             "REVERT" => EvmInst::REVERT,
             "STATICCALL" => EvmInst::STATICCALL,
+            "INVALID" => EvmInst::INVALID,
             "SUICIDE" => EvmInst::SUICIDE,
-            _ => panic!("unknown instruction {}", s)
+            "SELFDESTRUCT" => EvmInst::SUICIDE,
+            "Missing opcode 0xfe" => EvmInst::INVALID,
+            _ => panic!("unknown instruction '{}'", s)
         }
     }
 
@@ -448,12 +452,13 @@ pub fn as_str(op: &EvmInst) -> &str {
         EvmInst::DELEGATECALL => "DELEGATECALL",
         EvmInst::CREATE2 => "CREATE2",
         EvmInst::REVERT => "REVERT",
+        EvmInst::INVALID => "INVALID",
         EvmInst::STATICCALL => "STATICCALL",
         EvmInst::SUICIDE => "SUICIDE",
     }
 }
 
-pub static VALUES: [EvmInst; 135] = [
+pub static VALUES: [EvmInst; 136] = [
     EvmInst::STOP,
     EvmInst::ADD,
     EvmInst::MUL,
@@ -588,5 +593,6 @@ pub static VALUES: [EvmInst; 135] = [
     EvmInst::CREATE2,
     EvmInst::REVERT,
     EvmInst::STATICCALL,
+    EvmInst::INVALID,
     EvmInst::SUICIDE,
 ];
