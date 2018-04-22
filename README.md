@@ -4,10 +4,26 @@ What does the world computer cost?
 
 # Alert: Work-In-Progress
 
-Not finished. Not working. Not for prime time. Not tested. Not documented.
-Not a project to bring home and meet your parents.
+Not finished. Not for prime time. Not a project to bring home and meet your parents.
+
+# Components
+
+## `evmextract`
+
+Dumps EVM per-instruction counts and gas consumption. Calls geth's RPC methods via the 
+unix domain socket IPC interface.
+
+Usage:
+```
+$ evmextract STARTING_BLOCK PATH_TO_IPC_SOCKET
+```
+
+Where:
+* `STARTING_BLOCK` - the Ethereum block # to begin with
+* `PATH_TO_IPC_SOCKET` - fully qualified path to geth's IPC socket, usually `$HOME/.ethereum/geth.ipc`
 
 # Copyright and License
+
 Copyright 2018 int08h LLC. All rights reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");

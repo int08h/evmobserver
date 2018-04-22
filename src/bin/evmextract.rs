@@ -16,30 +16,27 @@
 //! Very early work to obtain EVM traces from Geth IPC. Work in progress, etc.
 //!
 
-extern crate bytesize;
-extern crate json;
 #[macro_use]
 extern crate log;
+extern crate bytesize;
+extern crate json;
 extern crate separator;
 extern crate simple_logger;
 
+extern crate evmobserver;
+
+use evmobserver::csvoutfile::CsvOutFile;
+use evmobserver::evminst::EvmInst;
+use evmobserver::gethrpc::BlockInfo;
+use evmobserver::gethrpc::GethRpc;
+use evmobserver::instcount::InstCount;
+
 use bytesize::ByteSize;
-use csvoutfile::CsvOutFile;
-use evminst::EvmInst;
-use gethrpc::BlockInfo;
-use gethrpc::GethRpc;
-use instcount::InstCount;
 use json::JsonValue;
 use separator::Separatable;
 use std::str;
 use std::time::{Duration, Instant};
 use std::u64;
-
-mod gethrpc;
-mod evminst;
-mod instcount;
-mod util;
-mod csvoutfile;
 
 ///
 /// Collect EVM statistics
@@ -52,8 +49,6 @@ struct EvmExtract {
     out_file: CsvOutFile,
     last_update: Instant,
 }
-
-static TEN_SECONDS: &'static Duration = &Duration::from_secs(10);
 
 impl EvmExtract {
 
@@ -83,12 +78,14 @@ impl EvmExtract {
               self.current_block.separated_string(), latest_block.separated_string()
         );
 
+        let ten_seconds = Duration::from_secs(10);
+
         for block_num in self.current_block..latest_block {
             let block_info = self.rpc.block_info(block_num);
             let trace_resp = self.rpc.trace_block(block_num);
             let trace = &trace_resp.unwrap_or(JsonValue::Null)["result"];
 
-            if self.last_update.elapsed() > *TEN_SECONDS {
+            if self.last_update.elapsed() > ten_seconds {
                 self.log_update(block_num, latest_block);
                 self.last_update = Instant::now();
             }
@@ -152,7 +149,7 @@ fn main() {
     let argv: Vec<String> = args().collect();
 
     if argv.len() != 3 {
-        info!("Usage: evmobs STARTING_BLOCK IPC_PATH");
+        info!("Usage: evmextract STARTING_BLOCK IPC_PATH");
         std::process::exit(1);
     }
 
