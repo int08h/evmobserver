@@ -74,15 +74,15 @@ impl GethRpc {
 
     /// Latest synchronized block number from Geth `eth.syncing` call
     pub fn get_latest_block(&mut self) -> Option<u64> {
-        let data = match self.syncing() {
+        let data = match self.block_number() {
             Ok(v) => v,
             Err(e) => {
-                println!("Error syncing(): {:?}", e);
+                println!("Error block_number(): {:?}", e);
                 return None;
             }
         };
 
-        match data["result"]["currentBlock"].as_str() {
+        match data["result"].as_str() {
             Some(v) => hex_to_u64(v),
             _ => None
         }
@@ -139,13 +139,13 @@ impl GethRpc {
         return parsed_json;
     }
 
-    /// Call Geth `eth.syncing`
-    fn syncing(&mut self) -> json::Result<JsonValue> {
-        let rpc = r#"{"jsonrpc":"2.0","method":"eth_syncing","params":[],"id":1}"#;
+    /// Call Geth `eth.blockNumber`
+    fn block_number(&mut self) -> json::Result<JsonValue> {
+        let rpc = r#"{"jsonrpc":"2.0","method":"eth_blockNumber","params":[],"id":1}"#;
 
         self.stream.write_all(rpc.as_bytes()).expect("write error");
 
-        let (_, parsed_json) = self.consume_response("eth.syncing");
+        let (_, parsed_json) = self.consume_response("eth.blockNumber");
 
         return parsed_json;
     }
