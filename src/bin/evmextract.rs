@@ -13,25 +13,23 @@
 // limitations under the License.
 
 //!
-//! Very early work to obtain EVM traces from Geth IPC. Work in progress, etc.
+//! Dumps EVM per-instruction counts and gas consumption.
 //!
 
+extern crate bytesize;
+extern crate evmobserver;
+extern crate json;
 #[macro_use]
 extern crate log;
-extern crate bytesize;
-extern crate json;
 extern crate separator;
 extern crate simple_logger;
 
-extern crate evmobserver;
-
+use bytesize::ByteSize;
 use evmobserver::csvoutfile::CsvOutFile;
 use evmobserver::evminst::EvmInst;
 use evmobserver::gethrpc::BlockInfo;
 use evmobserver::gethrpc::GethRpc;
 use evmobserver::instcount::InstCount;
-
-use bytesize::ByteSize;
 use json::JsonValue;
 use separator::Separatable;
 use std::str;
@@ -51,7 +49,6 @@ struct EvmExtract {
 }
 
 impl EvmExtract {
-
     fn new(starting_block: u64, rpc_path: &str) -> Self {
         EvmExtract {
             rpc: GethRpc::new(rpc_path),
@@ -63,36 +60,48 @@ impl EvmExtract {
         }
     }
 
-    fn catchup(&mut self) {
+    fn catchup_latest(&mut self) {
         let latest_block = match self.rpc.get_latest_block() {
             Some(v) => v,
-            None => return
+            None => panic!("Failed to read latest block from geth, can't proceed")
         };
 
-        if latest_block <= self.current_block {
+        info!("Latest block from geth: {}", latest_block.separated_string());
+
+        self.catchup(latest_block)
+    }
+
+    fn catchup(&mut self, target_block: u64) {
+        if self.current_block >= target_block {
+            info!("Catch-up complete: current {}, target {}",
+                  self.current_block.separated_string(), target_block.separated_string()
+            );
             return;
         }
 
-        info!("{} blocks to catch-up on (current {}, latest {})",
-              (latest_block - self.current_block).separated_string(),
-              self.current_block.separated_string(), latest_block.separated_string()
+        info!("{} blocks to catch-up on (current {}, target {})",
+              (target_block - self.current_block).separated_string(),
+              self.current_block.separated_string(), target_block.separated_string()
         );
 
         let ten_seconds = Duration::from_secs(10);
+        let mut last_update_block = self.current_block;
 
-        for block_num in self.current_block..latest_block {
+        for block_num in self.current_block..(target_block + 1) {
             let block_info = self.rpc.block_info(block_num);
             let trace_resp = self.rpc.trace_block(block_num);
             let trace = &trace_resp.unwrap_or(JsonValue::Null)["result"];
 
             if self.last_update.elapsed() > ten_seconds {
-                self.log_update(block_num, latest_block);
+                let block_delta = block_num - last_update_block;
+                self.log_update(block_num, target_block, block_delta);
                 self.last_update = Instant::now();
-            }
+                last_update_block = block_num;
+            };
 
             if trace.is_empty() {
                 continue;
-            }
+            };
 
             let num_traces = trace.len();
 
@@ -100,22 +109,29 @@ impl EvmExtract {
                 let trace_logs = &trace[idx]["result"]["structLogs"];
                 if !trace_logs.is_empty() {
                     self.count_instructions(idx as u32, trace_logs, &block_info);
-                }
+                };
             };
 
             self.current_block = block_num;
-        }
+        };
     }
 
-    fn log_update(&self, curr_block: u64, latest_block: u64) {
-        info!("Wrote block {} ({}) of {} (geth {}): txns {}, minsts {:.1}, mgas {:.1}, written {}",
+    fn log_update(&self, curr_block: u64, max_block: u64, block_delta: u64) {
+        let elapsed = {
+            let tmp = self.last_update.elapsed();
+            tmp.as_secs() as f64 + (tmp.subsec_nanos() as f64 * 1e-9)
+        };
+        let blocks_per_sec = block_delta as f64 / elapsed;
+
+        info!("Wrote block {} ({}) of {} (geth {}): {:.1} blks/s, txns {}, minsts {:.1}, mgas {}, written {}",
               self.out_file.last_block.separated_string(),
               self.out_file.last_time_stamp,
-              latest_block.separated_string(),
+              max_block.separated_string(),
               curr_block.separated_string(),
+              blocks_per_sec,
               self.out_file.total_txns.separated_string(),
               self.out_file.total_inst as f64 / 1_000_000.0,
-              self.out_file.total_gas as f64 / 1_000_000.0,
+              self.out_file.total_gas / 1_000_000,
               ByteSize::b(self.out_file.total_written)
         );
     }
@@ -148,17 +164,37 @@ fn main() {
 
     let argv: Vec<String> = args().collect();
 
-    if argv.len() != 3 {
-        info!("Usage: evmextract STARTING_BLOCK IPC_PATH");
-        std::process::exit(1);
-    }
+    let starting_block;
+    let ending_block;
+    let ipc_path;
 
-    let starting_block = argv[1].parse::<u64>().expect("Couldn't parse starting block");
-    let ipc_path = &argv[2];
+    match argv.len() {
+        3 => {
+            starting_block = argv[1].parse::<u64>().expect("Couldn't parse starting block");
+            ending_block = None;
+            ipc_path = &argv[2];
+        }
+        4 => {
+            starting_block = argv[1].parse::<u64>().expect("Couldn't parse starting block");
+            ending_block = Some(argv[2].parse::<u64>().expect("Couldn't parse ending block"));
+            ipc_path = &argv[3];
+        }
+        _ => {
+            info!("Usage: evmextract STARTING_BLOCK [END_BLOCK] IPC_PATH");
+            std::process::exit(1);
+        }
+    }
 
     let mut evm = EvmExtract::new(starting_block, &ipc_path);
 
-    loop {
-        evm.catchup();
+    if ending_block.is_some() {
+        evm.catchup(ending_block.unwrap())
+    } else {
+        info!("Continuous update loop");
+        loop {
+            evm.catchup_latest();
+        }
     }
+
+    info!("Done.");
 }

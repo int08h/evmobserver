@@ -301,7 +301,7 @@ impl EvmInst {
             "INVALID" => EvmInst::INVALID,
             "SUICIDE" => EvmInst::SUICIDE,
             "SELFDESTRUCT" => EvmInst::SUICIDE,
-            "Missing opcode 0xfe" => EvmInst::INVALID,
+            "Missing opcode 0xfe" => EvmInst::INVALID, // EIP 141
             inst => {
                 error!("unknown instruction '{}'", inst);
                 EvmInst::INVALID

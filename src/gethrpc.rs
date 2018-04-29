@@ -195,14 +195,13 @@ impl GethRpc {
                     if chunk[size - 1] == b'\n' {
                         break;
                     }
-                }
+                },
 
                 Err(ref e) if e.kind() == TimedOut || e.kind() == WouldBlock =>
                     warn!("Read timeout in {}, continuing", note),
 
-                Err(e) => {
-                    panic!("Failed read in {}: {:?}", note, e);
-                }
+                Err(e) =>
+                    panic!("Failed read in {}: {:?}", note, e)
             }
         }
 
