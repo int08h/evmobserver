@@ -12,11 +12,15 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#[macro_use]
-extern crate log;
 extern crate bytesize;
 extern crate json;
+#[macro_use]
+extern crate log;
 extern crate separator;
+#[macro_use]
+extern crate serde;
+#[macro_use]
+extern crate serde_derive;
 extern crate simple_logger;
 
 pub mod gethrpc;
@@ -24,4 +28,6 @@ pub mod evminst;
 pub mod instcount;
 pub mod util;
 pub mod csvoutfile;
+pub mod sources;
+pub mod prices;
 

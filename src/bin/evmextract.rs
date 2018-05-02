@@ -88,9 +88,6 @@ impl EvmExtract {
         let mut last_update_block = self.current_block;
 
         for block_num in self.current_block..(target_block + 1) {
-            let block_info = self.rpc.block_info(block_num);
-            let trace_resp = self.rpc.trace_block(block_num);
-            let trace = &trace_resp.unwrap_or(JsonValue::Null)["result"];
 
             if self.last_update.elapsed() > ten_seconds {
                 let block_delta = block_num - last_update_block;
@@ -99,13 +96,15 @@ impl EvmExtract {
                 last_update_block = block_num;
             };
 
+            let block_info = self.rpc.block_info(block_num);
+            let trace_resp = self.rpc.trace_block(block_num);
+            let trace = &trace_resp.unwrap_or(JsonValue::Null)["result"];
+
             if trace.is_empty() {
                 continue;
             };
 
-            let num_traces = trace.len();
-
-            for idx in 0..num_traces {
+            for idx in 0..trace.len() {
                 let trace_logs = &trace[idx]["result"]["structLogs"];
                 if !trace_logs.is_empty() {
                     self.count_instructions(idx as u32, trace_logs, &block_info);

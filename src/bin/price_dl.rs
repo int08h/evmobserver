@@ -16,41 +16,25 @@
 //! Obtain historical ethereum prices and persist them
 //!
 
+extern crate csv;
 extern crate evmobserver;
 extern crate json;
-#[macro_use]
 extern crate log;
 extern crate reqwest;
+extern crate serde;
+#[macro_use]
+extern crate serde_derive;
+extern crate serde_json;
 extern crate simple_logger;
 
-use json::JsonValue;
+use csv::Writer;
+use evmobserver::prices::Candlestick;
+use evmobserver::sources::{DataSource, Exchange, EXCHANGES, FxMethod};
+use serde::Serialize;
+use std::io;
 use std::u64;
 
-static MARKETS: &[&str] = &[
-    "kraken",
-    "bitstamp",
-    "poloniex",
-    "gdax",
-    "btce",
-    "gemini",
-    "binance",
-    "bitfinex",
-];
-
-#[derive(Debug, Clone, Copy)]
-struct Candlestick {
-    market: &'static str,
-    source: &'static str,
-    end_ts: u64,
-    open: f64,
-    high: f64,
-    low: f64,
-    close: f64,
-    volume: Option<f64>,
-    vwap: Option<f64>,
-}
-
-fn cryptowatch_prices(start_ts: u64, market: &'static str) -> Vec<Candlestick> {
+fn cryptowatch_prices(start_ts: u64, market: &Exchange) -> Vec<Candlestick> {
     let period = "300";
     let start_date_str = start_ts.to_string();
 
@@ -81,15 +65,15 @@ fn cryptowatch_prices(start_ts: u64, market: &'static str) -> Vec<Candlestick> {
 
         results.push(
             Candlestick {
-                market: market,
-                source: "cryptowat.ch",
+                market: *market,
+                source: DataSource::Cryptowatch,
+                fx_method: FxMethod::EthUsd,
                 end_ts,
                 open,
                 high,
                 low,
                 close,
                 volume: Some(volume),
-                vwap: None,
             }
         );
     }
@@ -104,7 +88,7 @@ fn poloniex_prices(start_ts: u64) -> Vec<Candlestick> {
         ("command", "returnChartData"),
         ("currencyPair", "USDT_ETH"),
         ("end", "9999999999"),
-        ("period", "1800"),
+        ("period", "300"),
         ("start", start_date_str.as_ref())
     ].as_ref());
 
@@ -124,24 +108,29 @@ fn poloniex_prices(start_ts: u64) -> Vec<Candlestick> {
         let low = entry["low"].as_f64().expect("low");
         let close = entry["close"].as_f64().expect("close");
         let volume = entry["volume"].as_f64().expect("volume");
-        let vwap = entry["weightedAverage"].as_f64().expect("vwap");
 
         results.push(
             Candlestick {
-                market: "poloniex",
-                source: "poloniex",
+                market: Exchange::Poloniex,
+                source: DataSource::Poloniex,
+                fx_method: FxMethod::EthUsdt,
                 end_ts,
                 open,
                 high,
                 low,
                 close,
                 volume: Some(volume),
-                vwap: Some(vwap),
             }
         );
     }
 
     results
+}
+
+fn write_prices<W>(writer: &mut Writer<W>, prices: &Vec<Candlestick>) where W: io::Write {
+    for px in prices {
+        writer.serialize(px).unwrap();
+    }
 }
 
 fn main() {
@@ -150,19 +139,19 @@ fn main() {
 
     simple_logger::init_with_level(Level::Info).unwrap();
 
-    let argv: Vec<String> = args().collect();
+    let _argv: Vec<String> = args().collect();
+
+    let mut writer = csv::Writer::from_path("prices.csv").unwrap();
 
 //    let prices = poloniex_prices(1438922534);
+//    write_prices(&mut writer, &prices);
 
-    for market in MARKETS {
-        println!("Getting cryptowat.ch {}", market);
-//        let prices = cryptowatch_prices(1438922534, market);
-        let prices = cryptowatch_prices(1524199386, market);
-        println!("  ... {} prices", prices.len());
+    for market in EXCHANGES.iter() {
+        let prices = cryptowatch_prices(1438922534, market);
+        println!("{}:{} has {} prices", DataSource::Cryptowatch, market, prices.len());
 
-        for px in &prices {
-            info!("{:?}", px);
-        }
+        write_prices(&mut writer, &prices);
     }
 
+    writer.flush().unwrap();
 }
