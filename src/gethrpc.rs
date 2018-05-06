@@ -16,11 +16,8 @@
 //! Provides Geth IPC calls
 //!
 
-extern crate bytesize;
-extern crate json;
-extern crate log;
-extern crate simple_logger;
-
+use bytesize;
+use json;
 use json::JsonValue;
 use std::io::{Read, Write};
 use std::io::ErrorKind::{TimedOut, WouldBlock};

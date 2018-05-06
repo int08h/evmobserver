@@ -16,10 +16,7 @@
 //! Exchanges and data sources
 //!
 
-extern crate serde;
-extern crate serde_derive;
-extern crate serde_json;
-
+use serde_json;
 use std::fmt::Display;
 use std::fmt::Error;
 use std::fmt::Formatter;

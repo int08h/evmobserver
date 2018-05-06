@@ -13,14 +13,15 @@
 // limitations under the License.
 
 extern crate bytesize;
+extern crate csv;
 extern crate json;
 #[macro_use]
 extern crate log;
 extern crate separator;
-#[macro_use]
 extern crate serde;
 #[macro_use]
 extern crate serde_derive;
+extern crate serde_json;
 extern crate simple_logger;
 
 pub mod gethrpc;
@@ -30,4 +31,5 @@ pub mod util;
 pub mod csvoutfile;
 pub mod sources;
 pub mod prices;
+pub mod evmtrace;
 

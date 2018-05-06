@@ -16,16 +16,9 @@
 //! Ethereum historical prices
 //!
 
-extern crate csv;
-extern crate log;
-extern crate serde;
-extern crate serde_derive;
-extern crate serde_json;
-extern crate simple_logger;
-
-use serde::Serialize;
+use csv;
 use sources::{DataSource, Exchange, FxMethod};
-use std::collections::Bound::{Excluded, Included, Unbounded};
+use std::collections::Bound::{Included, Unbounded};
 use std::collections::BTreeMap;
 use std::u64;
 
@@ -55,14 +48,12 @@ impl BestPrice {
 
     pub fn load_csv(&mut self, file_name: &str) {
         let mut reader = csv::Reader::from_path(file_name).unwrap();
-        let mut count = 0u64;
 
         for record in reader.deserialize() {
-            count += 1;
             let candle: Candlestick = record.unwrap();
 
             if self.prices.get(&candle.end_ts).is_none() {
-               self.prices.insert(candle.end_ts, candle);
+                self.prices.insert(candle.end_ts, candle);
             }
         }
     }
@@ -71,10 +62,34 @@ impl BestPrice {
         self.prices.len()
     }
 
-    pub fn nearest_price(&self, ts: u64) -> Option<&Candlestick> {
-        match self.prices.range((Included(ts), Unbounded)).next() {
-            Some((_, v)) => Some(v),
+    pub fn mid_price(candle: &Candlestick) -> f64 {
+        (candle.high + candle.low) / 2.0
+    }
+
+    // mid price, volume
+    pub fn best_price(&self, ts: u64, tolerance: u64) -> Option<(f64, f64)> {
+        match self.nearest_record(ts, tolerance) {
+            Some(candle) => {
+                Some((Self::mid_price(candle), candle.volume.unwrap_or(0.0)))
+            },
             None => None
+        }
+    }
+
+    pub fn nearest_record(&self, ts: u64, tolerance: u64) -> Option<&Candlestick> {
+        if let Some(record) = self.prices.range((Included(ts), Unbounded)).next() {
+            let delta = if ts > *record.0 { ts - *record.0 } else { *record.0 - ts };
+
+            return if delta > tolerance {
+                error!("price record out of tolerance, ts {}, record {} (delta {} > tolerance {})",
+                       ts, record.0, delta, tolerance);
+                None
+            } else {
+                Some(&record.1)
+            }
+
+        } else {
+            None
         }
     }
 }

@@ -22,18 +22,16 @@ extern crate json;
 extern crate log;
 extern crate reqwest;
 extern crate serde;
-#[macro_use]
-extern crate serde_derive;
 extern crate serde_json;
 extern crate simple_logger;
 
 use csv::Writer;
 use evmobserver::prices::Candlestick;
 use evmobserver::sources::{DataSource, Exchange, EXCHANGES, FxMethod};
-use serde::Serialize;
 use std::io;
 use std::u64;
 
+#[allow(dead_code)]
 fn cryptowatch_prices(start_ts: u64, market: &Exchange) -> Vec<Candlestick> {
     let period = "300";
     let start_date_str = start_ts.to_string();
@@ -81,6 +79,7 @@ fn cryptowatch_prices(start_ts: u64, market: &Exchange) -> Vec<Candlestick> {
     results
 }
 
+#[allow(dead_code)]
 fn poloniex_prices(start_ts: u64) -> Vec<Candlestick> {
     let start_date_str = start_ts.to_string();
 
