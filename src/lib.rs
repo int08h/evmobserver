@@ -28,7 +28,7 @@ pub mod gethrpc;
 pub mod evminst;
 pub mod instcount;
 pub mod util;
-pub mod csvoutfile;
+pub mod csvfiles;
 pub mod sources;
 pub mod prices;
 pub mod evmtrace;

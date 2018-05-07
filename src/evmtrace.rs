@@ -12,9 +12,20 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use csv::ByteRecord;
+use evminst::EvmInst;
+use std::str;
+
+pub const TS_IDX: usize = 0;
+pub const BLOCK_NUM_IDX: usize = 1;
+pub const TXN_INDEX_IDX: usize = 2;
+pub const ADDR_FROM_IDX: usize = 3;
+pub const ADDR_TO_IDX: usize = 4;
+pub const GAS_PX_IDX: usize = 5;
+
 //noinspection RsFieldNaming
 #[allow(non_snake_case)]
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize)]
 pub struct EvmTrace {
     pub ts: u64,
     pub block_num: u32,
@@ -294,4 +305,33 @@ pub struct EvmTrace {
     pub INVALID_gas: u32,
     pub SUICIDE_count: u16,
     pub SUICIDE_gas: u32,
+}
+
+pub fn get_field_u16(record: &ByteRecord, idx: usize) -> u16 {
+    let tmp = record.get(idx).unwrap();
+    unsafe { str::from_utf8_unchecked(tmp).parse().unwrap() }
+}
+
+pub fn get_field_u32(record: &ByteRecord, idx: usize) -> u32 {
+    let tmp = record.get(idx).unwrap();
+    unsafe { str::from_utf8_unchecked(tmp).parse().unwrap() }
+}
+
+pub fn get_field_u64(record: &ByteRecord, idx: usize) -> u64 {
+    let tmp = record.get(idx).unwrap();
+    unsafe { str::from_utf8_unchecked(tmp).parse().unwrap() }
+}
+
+const FIELD_OFFSET: usize = 6;
+
+pub fn get_inst_fields(record: &ByteRecord, op_idx: usize) -> (u32, u64) {
+    let idx = FIELD_OFFSET + (op_idx * 2);
+
+    let count_tmp = record.get(idx).unwrap();
+    let gas_tmp = record.get(idx + 1).unwrap();
+
+    let count: u32 = unsafe { str::from_utf8_unchecked(count_tmp).parse().unwrap() };
+    let gas: u64 = unsafe { str::from_utf8_unchecked(gas_tmp).parse().unwrap() };
+
+    (count, gas)
 }

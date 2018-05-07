@@ -25,7 +25,7 @@ extern crate separator;
 extern crate simple_logger;
 
 use bytesize::ByteSize;
-use evmobserver::csvoutfile::CsvOutFile;
+use evmobserver::csvfiles::TraceOutFile;
 use evmobserver::evminst::EvmInst;
 use evmobserver::gethrpc::BlockInfo;
 use evmobserver::gethrpc::GethRpc;
@@ -44,7 +44,7 @@ struct EvmExtract {
     current_block: u64,
     txn_count: InstCount,
     total_count: InstCount,
-    out_file: CsvOutFile,
+    out_file: TraceOutFile,
     last_update: Instant,
 }
 
@@ -55,7 +55,7 @@ impl EvmExtract {
             current_block: starting_block,
             txn_count: InstCount::new(),
             total_count: InstCount::new(),
-            out_file: CsvOutFile::new(starting_block),
+            out_file: TraceOutFile::new(starting_block),
             last_update: Instant::now(),
         }
     }

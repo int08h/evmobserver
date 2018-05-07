@@ -67,29 +67,19 @@ impl BestPrice {
     }
 
     // mid price, volume
-    pub fn best_price(&self, ts: u64, tolerance: u64) -> Option<(f64, f64)> {
-        match self.nearest_record(ts, tolerance) {
+    pub fn best_price(&self, ts: u64) -> Option<(f64, f64)> {
+        match self.nearest_record(ts) {
             Some(candle) => {
                 Some((Self::mid_price(candle), candle.volume.unwrap_or(0.0)))
-            },
+            }
             None => None
         }
     }
 
-    pub fn nearest_record(&self, ts: u64, tolerance: u64) -> Option<&Candlestick> {
-        if let Some(record) = self.prices.range((Included(ts), Unbounded)).next() {
-            let delta = if ts > *record.0 { ts - *record.0 } else { *record.0 - ts };
-
-            return if delta > tolerance {
-                error!("price record out of tolerance, ts {}, record {} (delta {} > tolerance {})",
-                       ts, record.0, delta, tolerance);
-                None
-            } else {
-                Some(&record.1)
-            }
-
-        } else {
-            None
+    pub fn nearest_record(&self, ts: u64) -> Option<&Candlestick> {
+        match self.prices.range((Included(ts), Unbounded)).next() {
+            Some(record) => Some(&record.1),
+            None => None
         }
     }
 }

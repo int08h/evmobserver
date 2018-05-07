@@ -12,20 +12,26 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use csv;
+use csv::ByteRecord;
+use csv::StringRecord;
 use evminst;
-use gethrpc::BlockInfo;
-use gethrpc::TxnInfo;
+use evmtrace::EvmTrace;
+use gethrpc::{BlockInfo, TxnInfo};
 use instcount::InstCount;
+use prices::{BestPrice, Candlestick};
 use std::fs::File;
 use std::io;
 use std::io::BufWriter;
 use std::io::prelude::*;
 use std::result::Result::Ok;
+use std::str;
+use std::time::Duration;
 
 ///
 /// CSV output of counts
 ///
-pub struct CsvOutFile {
+pub struct TraceOutFile {
     out_writer: BufWriter<File>,
 
     pub last_block: u64,
@@ -36,11 +42,52 @@ pub struct CsvOutFile {
     pub total_gas: u64,
 }
 
-impl CsvOutFile {
+pub struct PriceReader {
+    pub prices: BestPrice,
+}
+
+impl PriceReader {
+    pub fn new(prices_file: &str) -> Self {
+        let mut prices = BestPrice::new();
+        prices.load_csv(prices_file);
+
+        PriceReader {
+            prices
+        }
+    }
+
+    // visit_fn is intentionally a function pointer to prevent painfully long recompilation
+    // whenever it is changed
+    pub fn process(&self, count_files: Vec<String>, visit_fn: fn(&Candlestick, &ByteRecord) -> ()) {
+        for count_file in count_files {
+            let mut reader = csv::Reader::from_path(count_file.clone()).unwrap();
+
+            for record in reader.byte_records() {
+                if record.is_err() {
+                    warn!("file {} record {:?}", count_file, record);
+                    continue;
+                }
+
+                let trace = record.unwrap();
+                let tmp = trace.get(0).unwrap();
+                let ts: u64 = unsafe { str::from_utf8_unchecked(tmp).parse().unwrap() };
+                let candle = self.prices.nearest_record(ts).unwrap();
+
+                visit_fn(candle, &trace);
+            }
+        }
+    }
+
+    pub fn len(&self) -> usize {
+        self.prices.len()
+    }
+}
+
+impl TraceOutFile {
     const LINE_LIMIT: u64 = 10_000;
 
     pub fn new(starting_block: u64) -> Self {
-        CsvOutFile {
+        TraceOutFile {
             out_writer: Self::create_outfile(starting_block),
             last_block: 0,
             last_time_stamp: 0,
@@ -75,7 +122,7 @@ impl CsvOutFile {
             match txn_count.get_count(op) {
                 0 => {
                     written += self.out_writer.write(b"0,0,")?
-                },
+                }
                 count => {
                     let gas = txn_count.get_gas(op);
 
