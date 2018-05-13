@@ -5,39 +5,44 @@ extern crate log;
 extern crate simple_logger;
 
 use csv::ByteRecord;
-use csv::StringRecord;
 use evmobserver::csvfiles::PriceReader;
 use evmobserver::evminst;
 use evmobserver::evmtrace;
-use evmobserver::evmtrace::EvmTrace;
-use evmobserver::prices;
-use evmobserver::prices::Candlestick;
+use evmobserver::prices::{BestPrice, Candlestick};
 use log::Level;
 use std::env::args;
-use std::time::Duration;
+use std::fmt::Write;
 
 fn visitor(candle: &Candlestick, trace: &ByteRecord) {
     let ts = evmtrace::get_field_u64(trace, evmtrace::TS_IDX);
     let block_num = evmtrace::get_field_u32(trace, evmtrace::BLOCK_NUM_IDX);
     let txn_index = evmtrace::get_field_u16(trace, evmtrace::TXN_INDEX_IDX);
     let gas_px = evmtrace::get_field_u64(trace, evmtrace::GAS_PX_IDX);
-    let mid_px = prices::BestPrice::mid_price(candle);
+    let mid_px = BestPrice::mid_price(candle);
 
-    let gas_fiat = (gas_px as f64 / 1_000_000_000.0) * mid_px / 1_000_000_000.0;
-
-    info!("ts {}, block {}, txn {}, gas {:.3} * mid ${:.3} = ${:.9}",
-          ts, block_num, txn_index, gas_px, mid_px, gas_fiat);
+    let gas_fiat_px = (gas_px as f64 / 1_000_000_000.0) * mid_px / 1_000_000_000.0;
+    let mut output = String::with_capacity(2048);
+    let mut gas_block_total = 0f64;
 
     for (i, inst) in evminst::VALUES.iter().enumerate() {
         let (count, gas) = evmtrace::get_inst_fields(trace, i);
-        if count == 0 {
-           continue;
+        if count == 0 || gas == 0 {
+            continue;
         };
-//        info!("  {} {}, gas {}", evminst::as_str(inst), count, gas);
+
+        let gas_px_used = gas_fiat_px * gas as f64;
+        gas_block_total += gas_px_used;
+
+        write!(output, "{}:{} {} = ${:9}\n", inst, count, gas, gas_px_used).unwrap();
     }
+
+    info!(
+        "ts {}, block {}, txn {}, gas {:.3} * mid ${:.3} = ${:.9} TOTAL={:9};\n{}",
+        ts, block_num, txn_index, gas_px, mid_px, gas_fiat_px, gas_block_total, output
+    );
 }
 
-struct Pricer {}
+//struct Pricer {}
 
 fn main() {
     simple_logger::init_with_level(Level::Info).unwrap();
@@ -49,7 +54,7 @@ fn main() {
         std::process::exit(1);
     }
 
-    let mut prices = PriceReader::new(argv.get(1).unwrap());
+    let prices = PriceReader::new(argv.get(1).unwrap());
 
     info!("Loaded {} prices", prices.len());
 

@@ -24,12 +24,11 @@ extern crate serde_derive;
 extern crate serde_json;
 extern crate simple_logger;
 
-pub mod gethrpc;
-pub mod evminst;
-pub mod instcount;
-pub mod util;
 pub mod csvfiles;
-pub mod sources;
-pub mod prices;
+pub mod evminst;
 pub mod evmtrace;
-
+pub mod gethrpc;
+pub mod instcount;
+pub mod prices;
+pub mod sources;
+pub mod util;

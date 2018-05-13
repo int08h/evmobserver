@@ -63,35 +63,41 @@ impl EvmExtract {
     fn catchup_latest(&mut self) {
         let latest_block = match self.rpc.get_latest_block() {
             Some(v) => v,
-            None => panic!("Failed to read latest block from geth, can't proceed")
+            None => panic!("Failed to read latest block from geth, can't proceed"),
         };
 
-        info!("Latest block from geth: {}", latest_block.separated_string());
+        info!(
+            "Latest block from geth: {}",
+            latest_block.separated_string()
+        );
 
         self.catchup(latest_block)
     }
 
     fn catchup(&mut self, target_block: u64) {
         if self.current_block >= target_block {
-            info!("Catch-up complete: current {}, target {}",
-                  self.current_block.separated_string(), target_block.separated_string()
+            info!(
+                "Catch-up complete: current {}, target {}",
+                self.current_block.separated_string(),
+                target_block.separated_string()
             );
             return;
         }
 
-        info!("{} blocks to catch-up on (current {}, target {})",
-              (target_block - self.current_block).separated_string(),
-              self.current_block.separated_string(), target_block.separated_string()
+        info!(
+            "{} blocks to catch-up on (current {}, target {})",
+            (target_block - self.current_block).separated_string(),
+            self.current_block.separated_string(),
+            target_block.separated_string()
         );
 
         let ten_seconds = Duration::from_secs(10);
         let mut last_update_block = self.current_block;
 
         for block_num in self.current_block..(target_block + 1) {
-
             if self.last_update.elapsed() > ten_seconds {
                 let block_delta = block_num - last_update_block;
-                self.log_update(block_num, target_block, block_delta);
+                self.log_status_update(block_num, target_block, block_delta);
                 self.last_update = Instant::now();
                 last_update_block = block_num;
             };
@@ -107,15 +113,15 @@ impl EvmExtract {
             for idx in 0..trace.len() {
                 let trace_logs = &trace[idx]["result"]["structLogs"];
                 if !trace_logs.is_empty() {
-                    self.count_instructions(idx as u32, trace_logs, &block_info);
+                    self.update_instruction_counts(idx as u32, trace_logs, &block_info);
                 };
-            };
+            }
 
             self.current_block = block_num;
-        };
+        }
     }
 
-    fn log_update(&self, curr_block: u64, max_block: u64, block_delta: u64) {
+    fn log_status_update(&self, curr_block: u64, max_block: u64, block_delta: u64) {
         let elapsed = {
             let tmp = self.last_update.elapsed();
             tmp.as_secs() as f64 + (tmp.subsec_nanos() as f64 * 1e-9)
@@ -135,7 +141,12 @@ impl EvmExtract {
         );
     }
 
-    fn count_instructions(&mut self, txn_idx: u32, trace_logs: &JsonValue, block_info: &BlockInfo) {
+    fn update_instruction_counts(
+        &mut self,
+        txn_idx: u32,
+        trace_logs: &JsonValue,
+        block_info: &BlockInfo,
+    ) {
         self.txn_count.clear();
         let txn_info = self.rpc.txn_info(block_info.block_num, txn_idx);
 
@@ -150,7 +161,8 @@ impl EvmExtract {
             self.total_count.add_gas(op, gas_cost);
         }
 
-        self.out_file.write_count(&self.txn_count, &txn_info, &block_info)
+        self.out_file
+            .write_count(&self.txn_count, &txn_info, &block_info)
             .expect("write_count failed");
     }
 }
@@ -169,12 +181,16 @@ fn main() {
 
     match argv.len() {
         3 => {
-            starting_block = argv[1].parse::<u64>().expect("Couldn't parse starting block");
+            starting_block = argv[1]
+                .parse::<u64>()
+                .expect("Couldn't parse starting block");
             ending_block = None;
             ipc_path = &argv[2];
         }
         4 => {
-            starting_block = argv[1].parse::<u64>().expect("Couldn't parse starting block");
+            starting_block = argv[1]
+                .parse::<u64>()
+                .expect("Couldn't parse starting block");
             ending_block = Some(argv[2].parse::<u64>().expect("Couldn't parse ending block"));
             ipc_path = &argv[3];
         }

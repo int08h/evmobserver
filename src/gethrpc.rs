@@ -64,7 +64,9 @@ impl GethRpc {
             results: Vec::with_capacity((16 * bytesize::MIB) as usize),
         };
 
-        evm.stream.set_read_timeout(Some(Duration::new(10, 0))).expect("Couldn't set read timeout");
+        evm.stream
+            .set_read_timeout(Some(Duration::new(10, 0)))
+            .expect("Couldn't set read timeout");
 
         return evm;
     }
@@ -81,7 +83,7 @@ impl GethRpc {
 
         match data["result"].as_str() {
             Some(v) => hex_to_u64(v),
-            _ => None
+            _ => None,
         }
     }
 
@@ -105,8 +107,12 @@ impl GethRpc {
         let mut txn_info = self.txn_by_block_idx(block_num, block_index)
             .unwrap_or(JsonValue::Null);
 
-        let from = txn_info["result"]["from"].take_string().unwrap_or_else(|| String::new());
-        let to = txn_info["result"]["to"].take_string().unwrap_or_else(|| String::new());
+        let from = txn_info["result"]["from"]
+            .take_string()
+            .unwrap_or_else(|| String::new());
+        let to = txn_info["result"]["to"]
+            .take_string()
+            .unwrap_or_else(|| String::new());
         let gas_price = {
             let px = txn_info["result"]["gasPrice"].as_str().unwrap_or("0x0");
             hex_to_u64(px).unwrap_or(0)
@@ -151,7 +157,8 @@ impl GethRpc {
     fn txn_by_block_idx(&mut self, block_num: u64, txn_index: u32) -> json::Result<JsonValue> {
         let rpc = format!(
             "{{\"jsonrpc\":\"2.0\",\"method\":\"eth_getTransactionByBlockNumberAndIndex\",\
-            \"params\":[\"{:#x}\",\"{:#x}\"],\"id\":1}}", block_num, txn_index
+             \"params\":[\"{:#x}\",\"{:#x}\"],\"id\":1}}",
+            block_num, txn_index
         );
 
         self.stream.write_all(rpc.as_bytes()).expect("write error");
@@ -165,7 +172,8 @@ impl GethRpc {
     fn get_block(&mut self, block_num: u64) -> json::Result<JsonValue> {
         let rpc = format!(
             "{{\"jsonrpc\":\"2.0\",\"method\":\"eth_getBlockByNumber\",\
-            \"params\":[\"{:#x}\",false],\"id\":1}}", block_num
+             \"params\":[\"{:#x}\",false],\"id\":1}}",
+            block_num
         );
 
         self.stream.write_all(rpc.as_bytes()).expect("write error");
@@ -192,13 +200,13 @@ impl GethRpc {
                     if chunk[size - 1] == b'\n' {
                         break;
                     }
-                },
+                }
 
-                Err(ref e) if e.kind() == TimedOut || e.kind() == WouldBlock =>
-                    warn!("Read timeout in {}, continuing", note),
+                Err(ref e) if e.kind() == TimedOut || e.kind() == WouldBlock => {
+                    warn!("Read timeout in {}, continuing", note)
+                }
 
-                Err(e) =>
-                    panic!("Failed read in {}: {:?}", note, e)
+                Err(e) => panic!("Failed read in {}: {:?}", note, e),
             }
         }
 

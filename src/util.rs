@@ -12,7 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-
 /// Convert a `0x` prefixed hex string to u64
 ///
 /// Example: `hex_to_u64("0xff") -> 255`
@@ -21,7 +20,7 @@ pub fn hex_to_u64(s: &str) -> Option<u64> {
         // skip leading 0x
         match u64::from_str_radix(&s[2..], 16) {
             Ok(val) => Some(val),
-            Err(_) => None
+            Err(_) => None,
         }
     } else {
         None

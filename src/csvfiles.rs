@@ -14,9 +14,7 @@
 
 use csv;
 use csv::ByteRecord;
-use csv::StringRecord;
 use evminst;
-use evmtrace::EvmTrace;
 use gethrpc::{BlockInfo, TxnInfo};
 use instcount::InstCount;
 use prices::{BestPrice, Candlestick};
@@ -26,7 +24,6 @@ use std::io::BufWriter;
 use std::io::prelude::*;
 use std::result::Result::Ok;
 use std::str;
-use std::time::Duration;
 
 ///
 /// CSV output of counts
@@ -51,13 +48,11 @@ impl PriceReader {
         let mut prices = BestPrice::new();
         prices.load_csv(prices_file);
 
-        PriceReader {
-            prices
-        }
+        PriceReader { prices }
     }
 
     // visit_fn is intentionally a function pointer to prevent painfully long recompilation
-    // whenever it is changed
+    // whenever visit_fn is changed
     pub fn process(&self, count_files: Vec<String>, visit_fn: fn(&Candlestick, &ByteRecord) -> ()) {
         for count_file in count_files {
             let mut reader = csv::Reader::from_path(count_file.clone()).unwrap();
@@ -98,31 +93,36 @@ impl TraceOutFile {
         }
     }
 
-    pub fn write_count(&mut self, txn_count: &InstCount, txn_info: &TxnInfo,
-                       block_info: &BlockInfo) -> io::Result<()>
-    {
+    pub fn write_count(
+        &mut self,
+        txn_count: &InstCount,
+        txn_info: &TxnInfo,
+        block_info: &BlockInfo,
+    ) -> io::Result<()> {
         let mut written: usize = 0;
 
-        written += self.out_writer.write(block_info.time_stamp.to_string().as_ref())?;
+        written += self.out_writer
+            .write(block_info.time_stamp.to_string().as_ref())?;
         written += self.out_writer.write(b",")?;
-        written += self.out_writer.write(block_info.block_num.to_string().as_ref())?;
+        written += self.out_writer
+            .write(block_info.block_num.to_string().as_ref())?;
         written += self.out_writer.write(b",")?;
-        written += self.out_writer.write(txn_info.block_index.to_string().as_ref())?;
+        written += self.out_writer
+            .write(txn_info.block_index.to_string().as_ref())?;
         written += self.out_writer.write(b",")?;
         written += self.out_writer.write(txn_info.from.as_ref())?;
         written += self.out_writer.write(b",")?;
         written += self.out_writer.write(txn_info.to.as_ref())?;
         written += self.out_writer.write(b",")?;
-        written += self.out_writer.write(txn_info.gas_price.to_string().as_ref())?;
+        written += self.out_writer
+            .write(txn_info.gas_price.to_string().as_ref())?;
         written += self.out_writer.write(b",")?;
 
         for i in 0..evminst::VALUES.len() {
             let op = evminst::VALUES[i];
 
             match txn_count.get_count(op) {
-                0 => {
-                    written += self.out_writer.write(b"0,0,")?
-                }
+                0 => written += self.out_writer.write(b"0,0,")?,
                 count => {
                     let gas = txn_count.get_gas(op);
 
@@ -164,7 +164,9 @@ impl TraceOutFile {
 
         let mut writer = BufWriter::new(outfile);
 
-        writer.write("ts,block_num,txn_index,addr_from,addr_to,gas_px,".as_ref()).unwrap();
+        writer
+            .write("ts,block_num,txn_index,addr_from,addr_to,gas_px,".as_ref())
+            .unwrap();
 
         for i in 0..evminst::VALUES.len() {
             let op = evminst::as_str(&evminst::VALUES[i]).as_ref();

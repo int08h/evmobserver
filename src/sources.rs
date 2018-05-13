@@ -74,4 +74,3 @@ pub enum FxMethod {
     EthUsdt,
     EthBtcUsd,
 }
-

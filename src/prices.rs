@@ -42,7 +42,7 @@ pub struct BestPrice {
 impl BestPrice {
     pub fn new() -> Self {
         BestPrice {
-            prices: BTreeMap::new()
+            prices: BTreeMap::new(),
         }
     }
 
@@ -69,19 +69,15 @@ impl BestPrice {
     // mid price, volume
     pub fn best_price(&self, ts: u64) -> Option<(f64, f64)> {
         match self.nearest_record(ts) {
-            Some(candle) => {
-                Some((Self::mid_price(candle), candle.volume.unwrap_or(0.0)))
-            }
-            None => None
+            Some(candle) => Some((Self::mid_price(candle), candle.volume.unwrap_or(0.0))),
+            None => None,
         }
     }
 
     pub fn nearest_record(&self, ts: u64) -> Option<&Candlestick> {
         match self.prices.range((Included(ts), Unbounded)).next() {
             Some(record) => Some(&record.1),
-            None => None
+            None => None,
         }
     }
 }
-
-

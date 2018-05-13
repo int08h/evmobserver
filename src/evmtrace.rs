@@ -13,7 +13,6 @@
 // limitations under the License.
 
 use csv::ByteRecord;
-use evminst::EvmInst;
 use std::str;
 
 pub const TS_IDX: usize = 0;
