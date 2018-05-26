@@ -16,6 +16,7 @@
 //! Obtain historical ethereum prices and persist them
 //!
 
+extern crate chrono;
 extern crate csv;
 extern crate evmobserver;
 extern crate json;
@@ -25,11 +26,94 @@ extern crate serde;
 extern crate serde_json;
 extern crate simple_logger;
 
+use chrono::{DateTime, TimeZone, Utc};
 use csv::Writer;
 use evmobserver::prices::Candlestick;
 use evmobserver::sources::{DataSource, Exchange, EXCHANGES, FxMethod};
+use reqwest::header::Headers;
 use std::io;
 use std::u64;
+
+#[allow(dead_code)]
+fn coinapi_prices(start_ts: u64, market: &Exchange) -> Vec<Candlestick> {
+    let url = format!(
+        "https://rest.coinapi.io/v1/ohlcv/{}_SPOT_ETH_USD/history",
+        market.to_string().to_ascii_uppercase()
+    );
+
+    let start_date = Utc.timestamp(start_ts as i64, 0).to_rfc3339();
+
+    let mut headers = Headers::new();
+    headers.set_raw("X-CoinAPI-Key", "");
+
+    let params = Vec::from(
+        [
+            ("period_id", "5MIN"),
+            ("time_start", &start_date),
+            ("include_empty_items", "false"),
+            ("limit", "1000"),
+        ].as_ref(),
+    );
+
+    let client = reqwest::Client::new();
+    let mut response = client
+        .get(&url)
+        .query(&params)
+        .headers(headers)
+        .send()
+        .unwrap();
+
+    let text = response.text().expect("text conversion");
+    let json = json::parse(&text).expect("Couldn't parse response");
+    let mut results = Vec::with_capacity(json.len());
+
+    for entry in json.members() {
+        let tp_end = entry["time_period_end"].as_str().expect("time_period_end");
+        let open = entry["price_open"].as_f64().expect("price_open");
+        let high = entry["price_high"].as_f64().expect("price_high");
+        let low = entry["price_low"].as_f64().expect("price_low");
+        let close = entry["price_close"].as_f64().expect("price_close");
+        let volume = entry["volume_traded"].as_f64().expect("volume_traded");
+
+        let end_ts = DateTime::parse_from_rfc3339(tp_end)
+            .expect("parsing time_period_end")
+            .timestamp() as u64;
+
+        results.push(Candlestick {
+            market: *market,
+            source: DataSource::Coinapi,
+            fx_method: FxMethod::EthUsd,
+            end_ts,
+            open,
+            high,
+            low,
+            close,
+            volume: Some(volume),
+        });
+    }
+
+    // The rate-limit values returned from the API call
+    let mut rl_limit = -1i64;
+    let mut rl_remain = -1i64;
+    let mut rl_cost = -1i64;
+    let mut rl_reset = "unknown".to_string();
+
+    for item in response.headers().iter() {
+        match item.name().to_ascii_lowercase().as_str() {
+            "x-ratelimit-limit" => rl_limit = item.value_string().parse().expect("limit"),
+            "x-ratelimit-remaining" => rl_remain = item.value_string().parse().expect("remaining"),
+            "x-ratelimit-request-cost" => rl_cost = item.value_string().parse().expect("cost"),
+            "x-ratelimit-reset" => rl_reset = item.value_string(),
+            _ => (),
+        }
+    }
+    println!(
+        "CoinAPI limit {}, remaining {}, request cost {}, reset at {}",
+        rl_limit, rl_remain, rl_cost, rl_reset
+    );
+
+    results
+}
 
 #[allow(dead_code)]
 fn cryptowatch_prices(start_ts: u64, market: &Exchange) -> Vec<Candlestick> {
@@ -143,15 +227,23 @@ fn main() {
 
     let mut writer = csv::Writer::from_path("prices.csv").unwrap();
 
-    let prices = poloniex_prices(start_ts);
-    write_prices(&mut writer, &prices);
+    //    let prices = poloniex_prices(start_ts);
+    //    write_prices(&mut writer, &prices);
 
-    //    for market in EXCHANGES.iter() {
-    //        let prices = cryptowatch_prices(1438922534, market);
-    //        println!("{}:{} has {} prices", DataSource::Cryptowatch, market, prices.len());
-    //
-    //        write_prices(&mut writer, &prices);
-    //    }
+      for market in EXCHANGES.iter() {
+//    for market in vec![Exchange::Gdax, Exchange::Gemini].iter() {
+        // let prices = cryptowatch_prices(start_ts, market);
+        let prices = coinapi_prices(start_ts, market);
+        println!(
+            "{}:{} from {} has {} prices",
+            DataSource::Coinapi,
+            market,
+            Utc.timestamp(start_ts as i64, 0),
+            prices.len()
+        );
+
+        write_prices(&mut writer, &prices);
+    }
 
     writer.flush().unwrap();
 }

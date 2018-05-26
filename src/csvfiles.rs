@@ -52,7 +52,7 @@ impl PriceReader {
     }
 
     // visit_fn is intentionally a function pointer to prevent painfully long recompilation
-    // whenever visit_fn is changed
+    // whenever visit_fn is changed; cargo workspaces might help, if I knew how to use them :/
     pub fn process(&self, count_files: Vec<String>, visit_fn: fn(&Candlestick, &ByteRecord) -> ()) {
         for count_file in count_files {
             let mut reader = csv::Reader::from_path(count_file.clone()).unwrap();

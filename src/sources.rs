@@ -28,6 +28,7 @@ pub enum Exchange {
     Bitstamp,
     Poloniex,
     Gdax,
+    Coinbase,
     Btce,
     Gemini,
     Binance,
@@ -41,11 +42,12 @@ impl Display for Exchange {
     }
 }
 
-pub static EXCHANGES: [Exchange; 8] = [
+pub static EXCHANGES: [Exchange; 9] = [
     Exchange::Kraken,
     Exchange::Bitstamp,
     Exchange::Poloniex,
     Exchange::Gdax,
+    Exchange::Coinbase,
     Exchange::Btce,
     Exchange::Gemini,
     Exchange::Binance,

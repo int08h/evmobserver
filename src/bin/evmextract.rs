@@ -206,8 +206,10 @@ fn main() {
         evm.catchup(ending_block.unwrap())
     } else {
         info!("Continuous update loop");
+        let sleep_duration = std::time::Duration::from_secs(2);
         loop {
             evm.catchup_latest();
+            std::thread::sleep(sleep_duration);
         }
     }
 
