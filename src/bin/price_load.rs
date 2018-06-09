@@ -1,3 +1,17 @@
+// Copyright 2018 int08h, LLC all rights reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 extern crate csv;
 extern crate evmobserver;
 #[macro_use]
@@ -8,17 +22,17 @@ use csv::ByteRecord;
 use evmobserver::csvfiles::PriceReader;
 use evmobserver::evminst;
 use evmobserver::evmtrace;
-use evmobserver::prices::{BestPrice, Candlestick};
+use evmobserver::prices::Candlestick;
 use log::Level;
 use std::env::args;
 use std::fmt::Write;
 
 fn visitor(candle: &Candlestick, trace: &ByteRecord) {
+    let mid_px = candle.mid_price();
     let ts = evmtrace::get_field_u64(trace, evmtrace::TS_IDX);
     let block_num = evmtrace::get_field_u32(trace, evmtrace::BLOCK_NUM_IDX);
     let txn_index = evmtrace::get_field_u16(trace, evmtrace::TXN_INDEX_IDX);
     let gas_px = evmtrace::get_field_u64(trace, evmtrace::GAS_PX_IDX);
-    let mid_px = BestPrice::mid_price(candle);
 
     let gas_fiat_px = (gas_px as f64 / 1_000_000_000.0) * mid_px / 1_000_000_000.0;
     let mut output = String::with_capacity(2048);
@@ -41,8 +55,6 @@ fn visitor(candle: &Candlestick, trace: &ByteRecord) {
         ts, block_num, txn_index, gas_px, mid_px, gas_fiat_px, gas_block_total, output
     );
 }
-
-//struct Pricer {}
 
 fn main() {
     simple_logger::init_with_level(Level::Info).unwrap();

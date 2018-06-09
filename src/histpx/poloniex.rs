@@ -12,15 +12,31 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+extern crate csv;
+extern crate json;
+extern crate log;
+extern crate reqwest;
+extern crate serde;
+extern crate serde_json;
+extern crate simple_logger;
+
+use std::u64;
+use prices::Candlestick;
+use histpx::{Exchange, PriceDl, DataSource, FxMethod};
+
 pub struct Poloniex {}
 
 impl PriceDl for Poloniex {
-    fn download(&self, start_ts: u64, market: &Exchange) -> Vec<Candlestick> {
+    fn download(&self, start_ts: u64, _: &Exchange) -> Vec<Candlestick> {
         Poloniex::download(start_ts)
     }
 }
 
 impl Poloniex {
+    pub fn new() -> Self {
+        Poloniex {}
+    }
+
     pub fn download(start_ts: u64) -> Vec<Candlestick> {
         let start_date_str = start_ts.to_string();
 

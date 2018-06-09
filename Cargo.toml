@@ -4,7 +4,7 @@ version = "0.1.0"
 authors = ["Stuart Stock <stuart@int08h.com>"]
 repository = "https://github.com/int08h/evmobserver"
 license = "Apache-2.0"
-description = "Work-in-progress effort to extract EVM details from Geth IPC"
+description = "How much does the Ethereum 'world computer' cost?"
 readme = "README.md"
 
 [dependencies]

@@ -11,8 +11,29 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+extern crate csv;
+extern crate json;
+extern crate log;
+extern crate reqwest;
+extern crate serde;
+extern crate serde_json;
+extern crate simple_logger;
+
+use std::u64;
+
+use chrono::{DateTime, TimeZone, Utc};
+use histpx::{DataSource, FxMethod, Exchange, PriceDl};
+use prices::Candlestick;
+
+use self::reqwest::header::Headers;
 
 struct CoinApi {}
+
+impl CoinApi {
+    pub fn new() -> Self {
+        CoinApi {}
+    }
+}
 
 impl PriceDl for CoinApi {
     fn download(&self, start_ts: u64, market: &Exchange) -> Vec<Candlestick> {

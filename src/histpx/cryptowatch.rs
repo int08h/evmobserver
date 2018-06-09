@@ -11,8 +11,27 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
+extern crate chrono;
+extern crate csv;
+extern crate json;
+extern crate log;
+extern crate reqwest;
+extern crate serde;
+extern crate serde_json;
+extern crate simple_logger;
+
+use std::u64;
+
+use histpx::{Exchange, FxMethod, DataSource, PriceDl};
+use prices::Candlestick;
 
 struct CryptoWatch {}
+
+impl CryptoWatch {
+    pub fn new() -> Self {
+        CryptoWatch {}
+    }
+}
 
 impl PriceDl for CryptoWatch {
     fn download(&self, start_ts: u64, market: &Exchange) -> Vec<Candlestick> {

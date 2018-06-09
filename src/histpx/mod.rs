@@ -13,15 +13,22 @@
 // limitations under the License.
 
 //!
-//! Exchanges and data px
+//! Exchanges and historical prices
 //!
+
+extern crate chrono;
 
 use serde_json;
 use std::fmt::Display;
 use std::fmt::Error;
 use std::fmt::Formatter;
+use prices::Candlestick;
 
-//! Implementations download from specific market data sources
+pub mod coinapi;
+pub mod cryptowatch;
+pub mod poloniex;
+
+/// Implementations download from specific market data sources
 pub trait PriceDl {
     fn download(&self, start_ts: u64, market: &Exchange) -> Vec<Candlestick>;
 }

@@ -17,10 +17,10 @@
 //!
 
 use csv;
-use sources::{DataSource, Exchange, FxMethod};
 use std::collections::Bound::{Included, Unbounded};
 use std::collections::BTreeMap;
 use std::u64;
+use histpx::{Exchange, DataSource, FxMethod};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Candlestick {
@@ -33,6 +33,12 @@ pub struct Candlestick {
     pub low: f64,
     pub close: f64,
     pub volume: Option<f64>,
+}
+
+impl Candlestick {
+    pub fn mid_price(&self) -> f64 {
+        (self.high + self.low) / 2.0
+    }
 }
 
 pub struct BestPrice {
@@ -62,14 +68,10 @@ impl BestPrice {
         self.prices.len()
     }
 
-    pub fn mid_price(candle: &Candlestick) -> f64 {
-        (candle.high + candle.low) / 2.0
-    }
-
     // mid price, volume
     pub fn best_price(&self, ts: u64) -> Option<(f64, f64)> {
         match self.nearest_record(ts) {
-            Some(candle) => Some((Self::mid_price(candle), candle.volume.unwrap_or(0.0))),
+            Some(candle) => Some((candle.mid_price(), candle.volume.unwrap_or(0.0))),
             None => None,
         }
     }
