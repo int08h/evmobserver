@@ -16,10 +16,10 @@
 //! Ethereum historical prices
 //!
 
-use csv;
 use std::collections::Bound::{Included, Unbounded};
 use std::collections::BTreeMap;
 use std::u64;
+use csv;
 use histpx::{Exchange, DataSource, FxMethod};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -55,7 +55,8 @@ impl PriceReader {
     // whenever visit_fn is changed; cargo workspaces might help, if I knew how to use them :/
     pub fn process(&self, count_files: Vec<String>, visit_fn: fn(&Candlestick, &ByteRecord) -> ()) {
         for count_file in count_files {
-            let mut reader = csv::Reader::from_path(count_file.clone()).unwrap();
+            let mut reader = csv::Reader::from_path(count_file.clone())
+                .expect(&format!("Opening {}", count_file));
 
             for record in reader.byte_records() {
                 if record.is_err() {

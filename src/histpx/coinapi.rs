@@ -45,7 +45,7 @@ impl PriceDl for CoinApi {
         let start_date = Utc.timestamp(start_ts as i64, 0).to_rfc3339();
 
         let mut headers = Headers::new();
-        headers.set_raw("X-CoinAPI-Key", "4152FEB5-F8D0-40C9-ADBB-BA7853DF16D5");
+        headers.set_raw("X-CoinAPI-Key", "<your key here>");
 
         let params = Vec::from(
             [
