@@ -12,31 +12,40 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-extern crate csv;
-extern crate evmobserver;
 #[macro_use]
 extern crate log;
+extern crate csv;
+extern crate evmobserver;
 extern crate simple_logger;
 
+use std::env::args;
+use std::fmt::Write;
+
+use log::Level;
 use csv::ByteRecord;
 use evmobserver::csvfiles::PriceReader;
 use evmobserver::evminst;
 use evmobserver::evmtrace;
 use evmobserver::prices::Candlestick;
-use log::Level;
-use std::env::args;
-use std::fmt::Write;
+
+const DIVISOR: f64 = 1e9;
 
 fn visitor(candle: &Candlestick, trace: &ByteRecord) {
-    let mid_px = candle.mid_price();
     let ts = evmtrace::get_field_u64(trace, evmtrace::TS_IDX);
     let block_num = evmtrace::get_field_u32(trace, evmtrace::BLOCK_NUM_IDX);
     let txn_index = evmtrace::get_field_u16(trace, evmtrace::TXN_INDEX_IDX);
-    let gas_px = evmtrace::get_field_u64(trace, evmtrace::GAS_PX_IDX);
+    let addr_from = evmtrace::get_field_str(trace, evmtrace::ADDR_FROM_IDX);
+    let gas_px_gwei = evmtrace::get_field_u64(trace, evmtrace::GAS_PX_IDX) as f64 / DIVISOR;
 
-    let gas_fiat_px = (gas_px as f64 / 1_000_000_000.0) * mid_px / 1_000_000_000.0;
+    let mid_px_fiat = candle.mid_price();
+    let gas_px_eth = gas_px_gwei / DIVISOR;
+    let gas_px_fiat = gas_px_eth * mid_px_fiat;
+
+    let mut block_total_gas = 0u64;
+    let mut block_total_px_eth = 0f64;
+    let mut block_total_px_fiat = 0f64;
+
     let mut output = String::with_capacity(2048);
-    let mut gas_block_total = 0f64;
 
     for (i, inst) in evminst::VALUES.iter().enumerate() {
         let (count, gas) = evmtrace::get_inst_fields(trace, i);
@@ -44,15 +53,22 @@ fn visitor(candle: &Candlestick, trace: &ByteRecord) {
             continue;
         };
 
-        let gas_px_used = gas_fiat_px * gas as f64;
-        gas_block_total += gas_px_used;
+        block_total_gas += gas;
 
-        write!(output, "{}:{} {} = ${:9}\n", inst, count, gas, gas_px_used).unwrap();
+        let gas_px_used_eth = gas_px_eth * gas as f64;
+        let gas_px_used_fiat = gas_px_fiat * gas as f64;
+
+        block_total_px_eth += gas_px_used_eth;
+        block_total_px_fiat += gas_px_used_fiat;
+
+        write!(output, "{}:{} {} = ${:.9}\n", inst, count, gas, gas_px_used_fiat).unwrap();
     }
 
     info!(
-        "ts {}, block {}, txn {}, gas {:.3} * mid ${:.3} = ${:.9} TOTAL={:9};\n{}",
-        ts, block_num, txn_index, gas_px, mid_px, gas_fiat_px, gas_block_total, output
+        "ts {}, block {}, from {}, txn {}, gas_total_count {}, gas_px_eth {:.12} \
+        ({:.3} gwei) * mid ${:.3} = ${:.9} TOTAL=${:.6} ({:.9} eth)\n{}",
+        ts, block_num, addr_from, txn_index, block_total_gas, gas_px_eth, gas_px_gwei,
+        mid_px_fiat, gas_px_fiat, block_total_px_fiat, block_total_px_eth, output
     );
 }
 

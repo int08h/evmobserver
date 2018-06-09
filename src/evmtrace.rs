@@ -321,6 +321,11 @@ pub fn get_field_u64(record: &ByteRecord, idx: usize) -> u64 {
     unsafe { str::from_utf8_unchecked(tmp).parse().unwrap() }
 }
 
+pub fn get_field_str(record: &ByteRecord, idx: usize) -> &str {
+    let tmp = record.get(idx).unwrap();
+    unsafe { str::from_utf8_unchecked(tmp) }
+}
+
 const FIELD_OFFSET: usize = 6;
 
 pub fn get_inst_fields(record: &ByteRecord, op_idx: usize) -> (u32, u64) {
