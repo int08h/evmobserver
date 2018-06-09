@@ -13,13 +13,18 @@
 // limitations under the License.
 
 //!
-//! Exchanges and data sources
+//! Exchanges and data px
 //!
 
 use serde_json;
 use std::fmt::Display;
 use std::fmt::Error;
 use std::fmt::Formatter;
+
+//! Implementations download from specific market data sources
+pub trait PriceDl {
+    fn download(&self, start_ts: u64, market: &Exchange) -> Vec<Candlestick>;
+}
 
 #[derive(Debug, Copy, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
