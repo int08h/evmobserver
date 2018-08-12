@@ -28,6 +28,7 @@ source $HOME/.cargo/env
 #rustup default nightly
 
 # Google Cloud SDK
-sudo apt-get install google-cloud-sdk
+sudo apt-get install -y google-cloud-sdk python-boto
+sudo rm -f /etc/boto.cfg
 
 
